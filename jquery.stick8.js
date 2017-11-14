@@ -123,6 +123,7 @@
             if ( this.div ) {
                 return;
             }
+
             var div, clone, data;
 
             div = $('<div>');
@@ -146,6 +147,7 @@
 
             this.div = div;
             this.divData = data;
+            this.maxTop = data.top + parseInt(data.height);
 
             if ( this.parent ) {
                 this.parentData = this.getData(this.parent);
@@ -193,10 +195,9 @@
             if ( this.parent ) {
                 var div_max_top;
 
-                max_top = win_top + ( this.options.top ? min_top : this.divData.top);
-                div_max_top = win_top + ( this.options.top ? min_top : this.divData.top);
+                div_max_top = max_top = win_top + ( this.options.top ? min_top : this.divData.top);
 
-                if ( max_top >= this.maxTop ) {
+                if ( win_top > 0 && max_top >= this.maxTop ) {
                     div_top -= max_top - this.maxTop;
                 }
             }

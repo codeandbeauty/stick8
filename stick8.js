@@ -217,10 +217,9 @@
             if ( this.parent ) {
                 var div_max_top;
 
-                max_top = win_top + ( this.options.top ? min_top : this.divData.top);
-                div_max_top = win_top + ( this.options.top ? min_top : this.divData.top);
+                div_max_top = max_top = win_top + ( this.options.top ? min_top : this.divData.top);
 
-                if ( max_top >= this.maxTop ) {
+                if ( win_top > 0 && max_top >= this.maxTop ) {
                     div_top -= max_top - this.maxTop;
                 }
             }
