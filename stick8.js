@@ -23,8 +23,8 @@
         parentData: false,
         body: false,
         parent: false,
+        maxTop: 0,
         defaults: {
-            top: 25,
             parent: false,
             minWidth: 0,
             selector: '.flb-box'
@@ -35,7 +35,7 @@
 
             // Merge default options
             for ( var i in this.defaults ) {
-                if ( 'undefined' === opts[i] ) {
+                if ( ! opts[i] ) {
                     opts[i] = this.defaults[i];
                 }
             }
@@ -78,7 +78,7 @@
 
             viewport = this.getViewPort();
 
-            if ( this.options.minWidth && viewport.width <= this.options.minWidth ) {
+            if ( this.options.minWidth > 0 && viewport.width <= this.options.minWidth ) {
                 /**
                 Setting minimum width prevent the box from floating if the screen
                 dimension is lesser than or equal to set minimum width.
@@ -90,72 +90,39 @@
             this.createDiv();
             me = this;
 
+            this.stickOnScroll();
+
             window.addEventListener( 'scroll', function() {
                 me.stickOnScroll();
             });
         },
 
-        getOffset: function(box) {
-            var obj, left, top;
-
-            left = 0;
-            top = 0;
-            obj = box;
-
-            if ( obj.offsetParent ) {
-                do {
-                    left += obj.offsetLeft;
-                    top += obj.offsetTop;
-                } while(obj = obj.offsetParent);
-            }
-
-            return {left: left, top: top};
-        },
-
-        getStyle: function(elem, css) {
-            if ( window.getComputedStyle ) {
-                return getComputedStyle(elem).getPropertyValue(css);
-            }
-
-            return elem.currentStyle[css];
-        },
-
-        getBoxDimension: function(box) {
-            var me, css, width, height;
-
-            me = this;
-            css = ['width', 'padding-left', 'padding-right', 'height', 'padding-top', 'padding-bottom'];
-            width = 0;
-            height = 0;
-
-            css.map(function(prop, i) {
-                var value = me.getStyle(box, prop);
-
-                if ( i < 3 ) {
-                    width += parseInt(value);
-                } else {
-                    height += parseInt(value);
-                }
-            });
-
-            return {
-                width: width + 'px',
-                height: height + 'px'
-            };
-        },
-
         getData: function(box) {
-            var offset, dim;
+            var rect, data, top, left;
 
-            offset = this.getOffset(box);
-            dim = this.getBoxDimension(box);
-
-            return {
-                width: dim.width,
-                height: dim.height,
-                top: offset.top,
-                left: offset.left
+            rect = box.getBoundingClientRect();
+            data = {
+                width: rect.width,
+                height: rect.height,
+                top: rect.top,
+                left: rect.left
             };
+
+            top = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+            left = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft;
+
+            data.top += top;
+            data.left += left;
+
+            if ( box.scrollLeft ) {
+                data.width -= box.scrollLeft;
+            }
+
+            if ( box.scrollTop ) {
+                data.height -= box.scrollTop;
+            }
+
+            return data;
         },
 
         getViewPort: function() {
@@ -171,7 +138,7 @@
             div.style.padding = 0;
 
             this.body.appendChild(div);
-            dim = this.getBoxDimension(div);
+            dim = this.getData(div);
             this.body.removeChild(div);
 
             return {
@@ -181,16 +148,26 @@
         },
 
         createDiv: function() {
+            if ( this.div ) {
+                return;
+            }
+
             var data, div;
 
             data = this.getData(this.box);
             div = document.createElement('div');
             div.className = '__flb-container';
-            div.style.position = 'absolute';
-            div.style.width = data.width;
+            div.style.position = 'fixed';
+            div.style.width = data.width + 'px';
+            div.style.height = data.height + 'px';
             div.style.top = data.top + 'px';
             div.style.left = data.left + 'px';
             div.appendChild(this.box.cloneNode(true));
+
+            // Hide the original element first
+            this.hide();
+
+            // Then insert the new element
             this.body.appendChild(div);
 
             this.div = div;
@@ -198,10 +175,14 @@
 
             if ( this.parent ) {
                 this.parentData = this.getData(this.parent);
+                this.maxTop = this.parentData.top + this.parentData.height;
+                this.maxTop -= parseInt(data.height);
             }
 
-            // Hide the box element
-            this.hide();
+            // Trigger the onCreate event
+            if ( this.options.onCreate ) {
+                this.options.onCreate.call(null, this);
+            }
         },
 
         hide: function() {
@@ -213,35 +194,64 @@
         },
 
         stickOnScroll: function() {
-            var win_top, div_top, min_top, max_top;
+            var win_top, div_top, cur_top, min_top, max_top;
 
             win_top = window.pageYOffset;
             div_top = this.divData.top;
-            min_top = this.options.top;
+            min_top = parseInt(this.options.top);
 
-            if ( win_top > div_top - min_top ) {
-                div_top = win_top + min_top;
+            if ( this.options.top ) {
+                // If top is defined, it assumed it's the maximum top the element must stop
+                cur_top = parseInt(this.options.top) - win_top;
 
-                if ( this.parent ) {
-                    max_top = this.parentData.top + parseInt(this.parentData.height);
-                    max_top -= parseInt(this.divData.height);
+                if ( cur_top <= 0 ) {
+                    div_top = this.divData.top - win_top;
+                }
 
-                    if ( win_top + min_top > max_top ) {
-                        div_top = max_top;
-                    }
+                if ( div_top <= min_top ) {
+                    div_top = min_top;
+                }
+
+            }
+
+            if ( this.parent ) {
+                var div_max_top;
+
+                max_top = win_top + ( this.options.top ? min_top : this.divData.top);
+                div_max_top = win_top + ( this.options.top ? min_top : this.divData.top);
+
+                if ( max_top >= this.maxTop ) {
+                    div_top -= max_top - this.maxTop;
                 }
             }
 
             this.div.style.top = div_top + 'px';
+
+            // Trigger the onScroll event
+            if ( this.options.onScroll ) {
+                this.options.onScroll.call(null, this);
+            }
         }
     };
 
     Stick8All = function(box, opts) {
+        var timer, stick8, me;
+
+        stick8 = {};
+        me = this;
+
+        // Merge the object
         for ( var i in Stick8_ ) {
-            this[i] = Stick8_[i];
+            stick8[i] = Stick8_[i];
         }
 
-        this.init(box, opts);
+        // Init only if all are loaded
+        timer = setInterval(function() {
+            if ( 'complete' === document.readyState ) {
+                clearInterval(timer);
+                stick8.init(box, opts);
+            }
+        }, 100);
     };
 
     Stick8 = function(opts) {

@@ -2,34 +2,35 @@
 ;(function (root, factory) {
     if (typeof define === 'function' && define.amd) {
         // AMD. Register as an anonymous module.
-        define(['jquery'], factory);
+        define(['jQuery'], factory);
     } else if (typeof module === 'object' && module.exports) {
         // Node. Does not work with strict CommonJS, but
         // only CommonJS-like environments that support module.exports,
         // like Node.
-        module.exports = factory();
+        module.exports = factory(jQuery);
     } else {
         // Browser globals (root is window)
-        factory(jQuery);
+        root['Stick8'] = factory(jQuery);
     }
 }(this, function($) {
     'use strict';
 
-    var Stick8_, Stick8;
+    var Stick8_, Stick8, Stick8Instance;
 
     Stick8_ = {
         div: false,
         divData: false,
         parentData: false,
+        maxTop: 0,
         defaults: {
-            top: 25,
+            top: 0,
             parent: false,
             minWidth: 0,
             selector: '.flb-box'
         },
 
         init: function(box, opts) {
-            opts = $.extend(this.defaults, opts);
+            opts = $.extend({}, this.defaults, opts);
 
             if ( opts.parent ) {
                 this.parent = $(opts.parent);
@@ -39,7 +40,7 @@
             this.options = opts;
             this.initBox();
 
-            $(window).on('resize', $.proxy(this, 'reInitBox'));
+            $(window).on('resize', $.proxy(this.reInitBox, this));
         },
 
         reInitBox: function() {
@@ -49,6 +50,7 @@
 
             if ( this.div ) {
                 this.div.remove();
+                this.div = false;
             }
             this.show();
 
@@ -75,7 +77,7 @@
             // Create the sticky element container
             this.createDiv();
 
-            $(window).on('scroll', $.proxy( this, 'stickOnScroll'));
+            $(window).on('scroll', $.proxy( this.stickOnScroll, this));
         },
 
         getData: function(box) {
@@ -118,6 +120,9 @@
         },
 
         createDiv: function() {
+            if ( this.div ) {
+                return;
+            }
             var div, clone, data;
 
             div = $('<div>');
@@ -125,12 +130,17 @@
 
             div.addClass('__flb-container');
             div.css({
-                position: 'absolute',
+                position: 'fixed',
                 width: data.width,
                 top: data.top + 'px',
                 left: data.left + 'px'
             });
             clone = this.box.clone(true);
+
+            // Hide the box element
+            this.hide();
+
+            // Insert the new element
             clone.appendTo(div);
             div.appendTo('body');
 
@@ -139,10 +149,17 @@
 
             if ( this.parent ) {
                 this.parentData = this.getData(this.parent);
+                this.maxTop = this.parentData.top + this.parentData.height;
+                this.maxTop -= parseInt(data.height);
             }
 
-            // Hide the box element
-            this.hide();
+            // Trigger the onCreate event
+            if ( this.options.onCreate ) {
+                this.options.onCreate.call(null, this);
+            }
+
+            // Initialize sticky positioning
+            this.stickOnScroll();
         },
 
         hide: function() {
@@ -154,44 +171,84 @@
         },
 
         stickOnScroll: function() {
-            var win_top, div_top, min_top, max_top;
+            var win_top, div_top, cur_top, min_top, max_top;
 
             win_top = $(window).scrollTop();
             div_top = this.divData.top;
-            min_top = this.options.top;
+            min_top = parseInt(this.options.top);
 
-            if ( win_top > div_top - min_top ) {
-                div_top = win_top + min_top;
+            if ( this.options.top ) {
+                // If top is defined, it assumed it's the maximum top the element must stop
+                cur_top = parseInt(this.options.top) - win_top;
 
-                if ( this.parent ) {
-                    max_top = this.parentData.top + parseInt(this.parentData.height);
-                    max_top -= parseInt(this.div.outerHeight());
+                if ( cur_top <= 0 ) {
+                    div_top = this.divData.top - win_top;
+                }
 
-                    if ( win_top + min_top > max_top ) {
-                        div_top = max_top;
-                    }
+                if ( div_top <= min_top ) {
+                    div_top = min_top;
+                }
+            }
+
+            if ( this.parent ) {
+                var div_max_top;
+
+                max_top = win_top + ( this.options.top ? min_top : this.divData.top);
+                div_max_top = win_top + ( this.options.top ? min_top : this.divData.top);
+
+                if ( max_top >= this.maxTop ) {
+                    div_top -= max_top - this.maxTop;
                 }
             }
 
             this.div.css('top', div_top + 'px');
+
+            // Trigger the onScroll event
+            if ( this.options.onScroll ) {
+                this.options.onScroll.call(null, this);
+            }
         }
     };
 
-    Stick8 = function(box, opts) {
-        $.extend(this, Stick8_);
+    Stick8Instance = function(opts) {
+        var box, timer, stick8;
 
-        this.init(box, opts);
+        box = opts.selector ? $(opts.selector) : $('.flb-box');
+
+        stick8 = $.extend({}, Stick8_);
+
+        // Init only if all are loaded
+        timer = setInterval(function() {
+            if ( 'complete' === document.readyState ) {
+                clearInterval(timer);
+                stick8.init(box, opts);
+            }
+        }, 100);
+
+        return stick8;
     };
 
     $.fn.Stick8 = function(opts) {
         opts = opts || {};
 
         $(this).each(function() {
-            var stick;
+            opts.selector = this;
 
-            stick = new Stick8($(this), opts);
+            this.stick8 = new Stick8Instance(opts);
         });
 
         return this;
     };
+
+    Stick8 = function(opts) {
+        opts = opts || {};
+
+        if ( ! opts.selector ) {
+            opts.selector = '.flb-box';
+        }
+
+        return $(opts.selector).Stick8(opts);
+    };
+
+    return Stick8;
 }));
