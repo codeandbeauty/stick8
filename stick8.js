@@ -61,7 +61,10 @@
             me = this;
 
             if ( this.div ) {
-                this.body.removeChild(this.div);
+                this.box = this.div.firstChild;
+                this.div.parentElement.appendChild(this.box);
+                this.div.parentElement.removeChild(this.div);
+                this.clone.parentElement.removeChild(this.clone);
                 this.div = false;
             }
             this.show();
@@ -152,7 +155,7 @@
                 return;
             }
 
-            var data, div;
+            var data, div, clone;
 
             data = this.getData(this.box);
             div = document.createElement('div');
@@ -162,15 +165,19 @@
             div.style.height = data.height + 'px';
             div.style.top = data.top + 'px';
             div.style.left = data.left + 'px';
-            div.appendChild(this.box.cloneNode(true));
 
-            // Hide the original element first
-            this.hide();
+            clone = document.createElement('div');
+            clone.className = '__flb-clone';
+            clone.style.width = data.width + 'px';
+            clone.style.height = data.height + 'px';
+            this.box.parentElement.insertBefore(clone, this.box);
 
             // Then insert the new element
-            this.body.appendChild(div);
+            this.box.parentElement.insertBefore(div, this.box);
+            div.appendChild(this.box);
 
             this.div = div;
+            this.clone = clone;
             this.divData = data;
 
             if ( this.parent ) {

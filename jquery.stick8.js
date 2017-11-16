@@ -49,10 +49,10 @@
             me = this;
 
             if ( this.div ) {
-                this.div.remove();
+                this.box.unwrap();
+                this.clone.remove();
                 this.div = false;
             }
-            this.show();
 
             // Let's delay the re-initialization to get the correct css styling
             timer = setInterval(function() {
@@ -136,16 +136,20 @@
                 top: data.top + 'px',
                 left: data.left + 'px'
             });
-            clone = this.box.clone(true);
 
-            // Hide the box element
-            this.hide();
+            clone = $('<div>');
+            clone.addClass('__flb-clone');
+            clone.css({
+                width: data.width,
+                height: data.height
+            });
+            clone.insertBefore(this.box);
 
-            // Insert the new element
-            clone.appendTo(div);
-            div.appendTo('body');
+            // Wrap the target element
+            this.box.wrap(div);
 
-            this.div = div;
+            this.div = this.box.parent();
+            this.clone = clone;
             this.divData = data;
             this.maxTop = data.top + parseInt(data.height);
 
@@ -162,14 +166,6 @@
 
             // Initialize sticky positioning
             this.stickOnScroll();
-        },
-
-        hide: function() {
-            this.box.css('visibility', 'hidden');
-        },
-
-        show: function() {
-            this.box.css('visibility', 'visible');
         },
 
         stickOnScroll: function() {
@@ -220,7 +216,7 @@
 
         // Init only if all are loaded
         timer = setInterval(function() {
-            if ( 'complete' === document.readyState ) {
+            if ( 'complete' === document.readyState && box.length ) {
                 clearInterval(timer);
                 stick8.init(box, opts);
             }
